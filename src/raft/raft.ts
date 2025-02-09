@@ -20,8 +20,8 @@ export class RaftNode extends EventEmitter {
 
   private lastHeartbeatLeader = Date.now();
   private readonly heartbeatInterval = 1000;
-  private readonly electionTimeout = 1000;
   private readonly startElectionTimeout = 10000;
+  private readonly electionTimeoutRange = { min: 2000, max: 3000 };
   private readonly multiply = 5;
 
   private readonly nodeId: NodeId;
@@ -82,9 +82,9 @@ export class RaftNode extends EventEmitter {
   }
 
   private finishMessageHandler(message: FinishElectionMessage) {
-    const leader = this.getLeader()
+    const leader = this.getLeader();
     if (leader !== message.leader) {
-      this.logger.warn('collision leader')
+      this.logger.warn('collision leader');
       // this.becomeCandidate();
     }
   }
@@ -165,6 +165,11 @@ export class RaftNode extends EventEmitter {
   }
 
   private startElectionTimer() {
+    const timeout =
+      Math.random() *
+        (this.electionTimeoutRange.max - this.electionTimeoutRange.min) +
+      this.electionTimeoutRange.min;
+
     setTimeout(() => {
       if (this.state === NodeState.Leader) return;
 
@@ -177,7 +182,7 @@ export class RaftNode extends EventEmitter {
       }
 
       this.startElectionTimer();
-    }, this.electionTimeout);
+    }, timeout);
   }
 
   private becomeCandidate() {
@@ -214,16 +219,15 @@ export class RaftNode extends EventEmitter {
   private election() {
     // Если во время выборов приходит heartbeat и вкладка становится follower
     if (this.state !== NodeState.Candidate) return;
-    const leader = this.getLeader()
+    const leader = this.getLeader();
     this.lastHeartbeatLeader = Date.now();
     if (leader === this.nodeId) {
       this.becameLeader();
     } else {
       this.becameFollower(leader);
     }
-    this.finishElectionMessage(leader)
+    this.finishElectionMessage(leader);
   }
-
 
   private getLeader() {
     // Стабильная сортировка (modern browsers) гарантирует
@@ -250,7 +254,6 @@ export class RaftNode extends EventEmitter {
     };
     this.channel.sendMessage(message);
   }
-
 
   private finishElectionMessage(leader: NodeId) {
     const message: FinishElectionMessage = {
