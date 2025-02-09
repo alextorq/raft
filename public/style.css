@@ -1,0 +1,67 @@
+:root {
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.87);
+    background-color: #000000;
+    text-align: center;
+}
+
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 320px;
+    height: 100vh;
+    align-items: center;
+
+    background-image: url("background.svg");
+    background-repeat: no-repeat;
+    background-size: contain;
+    font-family: "JetBrains Mono", serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+    font-weight: 800;
+}
+
+#app {
+    max-width: 1280px;
+}
+
+.counter {
+    font-weight: 400;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: rgba(255, 255, 255, 1);
+    height: 100vh;
+}
+
+
+.counter-info {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background-color: rgba(25, 25, 28, 0.5);
+    border-radius: 29px;
+    padding: 40px 20px;
+}
+
+.counter-value {
+    font-weight: 200;
+    font-size: 170px;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+}
+
+@media (max-width: 875px) {
+    .counter {
+        flex-direction: column;
+        padding: 0;
+        margin-bottom: 0;
+    }
+
+    .counter-info {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+}
