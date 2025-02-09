@@ -10,4 +10,4 @@ and choose leader.
 
 Sort function in modern browsers are stable if you use old browsers you can implement it by you self 
 
-![img.png](img.png)![img_1.png](img_1.png)
+![img.png](img.png)
