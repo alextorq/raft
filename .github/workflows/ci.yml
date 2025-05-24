@@ -2,7 +2,7 @@ name: Run Tests
 
 on:
   pull_request:
-    branches: [ main ] # Assuming 'main' is the default branch
+    branches: [ master ] # Assuming 'main' is the default branch
 
 jobs:
   test:
