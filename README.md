@@ -1,3 +1,5 @@
+[![Run Tests](https://github.com/alextorq/raft/actions/workflows/ci.yml/badge.svg)](https://github.com/alextorq/raft/actions/workflows/ci.yml)
+
 # Try to select leader tab in browser
 
 State machine based approach 
