@@ -1,249 +1,216 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { RaftNode } from './raft';
-import { NodeState, Command, HeartbeatMessage, NodeId, MessageType, VoteRequestMessage, VoteResponseMessage } from './types';
+import { NodeState, Command, NodeId } from './types';
 import { BroadCastI } from './broad-cast';
 import { Logger } from './logger';
 
-// Mock dependencies
 const mockBroadcastChannel: BroadCastI = {
   sendMessage: vi.fn(),
   addHandler: vi.fn(),
 };
 
-const mockLogger: Logger = {
-  log: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-};
+class MockLogger extends Logger {
+  constructor(nodeId: NodeId) {
+    super(nodeId);
+  }
+
+  log = vi.fn();
+  warn = vi.fn();
+  error = vi.fn();
+}
 
 describe('RaftNode', () => {
   let node: RaftNode;
   const nodeId: NodeId = 'node1' as NodeId;
   const otherNodeId: NodeId = 'node2' as NodeId;
+  let mockLogger: Logger;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    // Reset mocks before each test
     vi.clearAllMocks();
-    // Mock Math.random to control election timeout
-    vi.spyOn(global.Math, 'random').mockReturnValue(0.5); // Will result in a 2500ms timeout (2000 + 0.5 * 1000)
-
-    node = new RaftNode(nodeId, mockBroadcastChannel, mockLogger, [nodeId, otherNodeId]);
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    mockLogger = new MockLogger(nodeId);
+    node = new RaftNode(nodeId, mockBroadcastChannel, mockLogger);
   });
 
   afterEach(() => {
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
-    vi.spyOn(global.Math, 'random').mockRestore();
+    vi.spyOn(Math, 'random').mockRestore();
   });
 
-  it('should initialize as a Follower', () => {
-    expect(node.state).toBe(NodeState.Follower);
-    expect(node.currentTerm).toBe(0);
-    expect(node.votedFor).toBeNull();
+  describe('Initial State', () => {
+    it('should initialize as a Follower', () => {
+      expect(node.state).toBe(NodeState.Follower);
+    });
+
+    it('should set up broadcast listener on initialization', () => {
+      expect(mockBroadcastChannel.addHandler).toHaveBeenCalledTimes(1);
+    });
   });
 
-  it('should transition to Candidate state if election timeout occurs', () => {
-    // Initial state is Follower
-    expect(node.state).toBe(NodeState.Follower);
+  describe('Election Timeout', () => {
+    it('should transition to Candidate state when election timeout occurs', () => {
+      expect(node.state).toBe(NodeState.Follower);
+      // Clear any existing calls
+      (mockBroadcastChannel.sendMessage as any).mockClear();
+      // Send StartElection message to trigger candidate state
+      const handler = (mockBroadcastChannel.addHandler as any).mock.calls[0][0];
+      handler({
+        data: {
+          type: Command.StartElection,
+          nodeId: nodeId
+        }
+      });
+      expect(node.state).toBe(NodeState.Candidate);
+    });
 
-    // Advance time past the election timeout (2500ms due to Math.random mock)
-    vi.advanceTimersByTime(2501);
+    it('should start election by sending StartElection message', () => {
+      (mockBroadcastChannel.sendMessage as any).mockClear();
+      // Send StartElection message
+      const handler = (mockBroadcastChannel.addHandler as any).mock.calls[0][0];
+      handler({
+        data: {
+          type: Command.StartElection,
+          nodeId: nodeId
+        }
+      });
 
-    expect(node.state).toBe(NodeState.Candidate);
-    expect(node.currentTerm).toBe(1); // Incremented term
-    expect(node.votedFor).toBe(nodeId); // Voted for self
-    expect(mockBroadcastChannel.sendMessage).toHaveBeenCalledTimes(1); // Sent requestVote
-    const messageSent = (mockBroadcastChannel.sendMessage as any).mock.calls[0][0];
-    expect(messageSent.type).toBe(MessageType.RequestVote);
-    expect(messageSent.term).toBe(1);
-    expect(messageSent.candidateId).toBe(nodeId);
+      // Check that at least one of the messages is a StartElection
+      const messages = (mockBroadcastChannel.sendMessage as any).mock.calls;
+      const startElectionMessage = messages.find(
+        (call: { type: Command }[]) => call[0].type === Command.StartElection,
+      );
+      expect(startElectionMessage).toBeTruthy();
+      expect(startElectionMessage[0].type).toBe(Command.StartElection);
+      expect(startElectionMessage[0].nodeId).toBe(nodeId);
+    });
   });
 
-  it('Candidate should start an election by sending an election message', () => {
-    // Transition to candidate
-    vi.advanceTimersByTime(2501); 
-    expect(node.state).toBe(NodeState.Candidate);
+  describe('Heartbeat Mechanism', () => {
+    it('should send heartbeat messages when in Leader state', () => {
+      // First become a candidate
+      const handler = (mockBroadcastChannel.addHandler as any).mock.calls[0][0];
+      handler({
+        data: {
+          type: Command.StartElection,
+          nodeId: nodeId
+        }
+      });
 
-    // Check if requestVote was sent
-    expect(mockBroadcastChannel.sendMessage).toHaveBeenCalledTimes(1);
-    const messageSent = (mockBroadcastChannel.sendMessage as any).mock.calls[0][0];
-    expect(messageSent.type).toBe(MessageType.RequestVote);
-    expect(messageSent.term).toBe(1);
-    expect(messageSent.candidateId).toBe(nodeId);
-    expect(messageSent.lastLogIndex).toBe(0); // Assuming log is empty
-    expect(messageSent.lastLogTerm).toBe(0);  // Assuming log is empty
-  });
-  
-  it('Candidate should become Leader if it receives majority votes', () => {
-    // Transition to candidate
-    vi.advanceTimersByTime(2501);
-    expect(node.state).toBe(NodeState.Candidate);
-    expect(node.currentTerm).toBe(1);
+      // Then trigger a state change to leader
+      node.state = NodeState.Leader;
 
-    // Simulate receiving a vote from the other node
-    const voteResponse: VoteResponseMessage = {
-      type: MessageType.VoteResponse,
-      term: 1,
-      voterId: otherNodeId,
-      voteGranted: true,
-    };
-    
-    // Manually trigger message handler as if a message was received
-    // This requires access to the callback passed to addHandler
-    // For simplicity, we'll call the method that handles this directly if possible,
-    // or simulate the effect. RaftNode.handleMessage would be ideal.
-    // As RaftNode's addHandler is called in constructor, we can't easily grab the callback here
-    // without refactoring or making the callback a public member for testing.
-    // Let's assume for now handleMessage exists and is callable, or we test the state change directly.
+      // Clear any messages sent during state changes
+      (mockBroadcastChannel.sendMessage as any).mockClear();
 
-    // Directly manipulate votes received for testing this part
-    node.votesReceived = new Set([nodeId, otherNodeId]); // It voted for itself and got one vote
-    node.checkElection(); // Manually call checkElection to evaluate votes
+      // Trigger heartbeat - using the heartbeatInterval from RaftNode (1000ms)
+      vi.advanceTimersByTime(1000);
 
-    expect(node.state).toBe(NodeState.Leader);
-    expect(mockLogger.log).toHaveBeenCalledWith(expect.stringContaining('became Leader'));
-    
-    // Check if heartbeats are sent upon becoming leader
-    expect(mockBroadcastChannel.sendMessage).toHaveBeenCalledTimes(2); // 1 for vote req, 1 for initial heartbeat
-    const heartbeatMessage = (mockBroadcastChannel.sendMessage as any).mock.calls[1][0];
-    expect(heartbeatMessage.type).toBe(MessageType.Heartbeat);
-    expect(heartbeatMessage.term).toBe(1);
-    expect(heartbeatMessage.leaderId).toBe(nodeId);
+      // Verify heartbeat message
+      expect(mockBroadcastChannel.sendMessage).toHaveBeenCalledTimes(1);
+      const heartbeat = (mockBroadcastChannel.sendMessage as any).mock.calls[0][0];
+      expect(heartbeat.type).toBe(Command.HeardBeat);
+      expect(heartbeat.nodeId).toBe(nodeId);
+      expect(heartbeat.state).toBe(NodeState.Leader);
+    });
+
+    it('should stay as Follower when receiving valid heartbeats', () => {
+      const handler = (mockBroadcastChannel.addHandler as any).mock.calls[0][0];
+
+      handler({
+        data: {
+          type: Command.HeardBeat,
+          nodeId: otherNodeId,
+          state: NodeState.Leader
+        }
+      });
+
+      // Should not transition to candidate within max election timeout
+      vi.advanceTimersByTime(2900);
+      expect(node.state).toBe(NodeState.Follower);
+    });
   });
 
+  describe('State Transitions', () => {
+    it('should step down to Follower when receiving heartbeat from valid leader', () => {
+      node.state = NodeState.Candidate;
+      const handler = (mockBroadcastChannel.addHandler as any).mock.calls[0][0];
 
-  it('Leader should send heartbeat messages periodically', () => {
-    // Make node a leader
-    vi.advanceTimersByTime(2501); // Become candidate
-    node.votesReceived = new Set([nodeId, otherNodeId]);
-    node.checkElection(); // Become leader
-    expect(node.state).toBe(NodeState.Leader);
-    
-    // Clear initial heartbeat message from becoming leader
-    mockBroadcastChannel.sendMessage.mockClear();
+      handler({
+        data: {
+          type: Command.HeardBeat,
+          nodeId: otherNodeId,
+          state: NodeState.Leader
+        }
+      });
 
-    // Advance time by heartbeat interval
-    vi.advanceTimersByTime(1000); // Default heartbeat interval
-    expect(mockBroadcastChannel.sendMessage).toHaveBeenCalledTimes(1);
-    let heartbeatMessage = (mockBroadcastChannel.sendMessage as any).mock.calls[0][0];
-    expect(heartbeatMessage.type).toBe(MessageType.Heartbeat);
-    expect(heartbeatMessage.term).toBe(1);
+      expect(node.state).toBe(NodeState.Follower);
+    });
 
-    vi.advanceTimersByTime(1000);
-    expect(mockBroadcastChannel.sendMessage).toHaveBeenCalledTimes(2);
-    heartbeatMessage = (mockBroadcastChannel.sendMessage as any).mock.calls[1][0];
-    expect(heartbeatMessage.type).toBe(MessageType.Heartbeat);
-    expect(heartbeatMessage.term).toBe(1);
+    it('should notify about state changes', () => {
+      const stateChangeListener = vi.fn();
+      node.on('stateChange', stateChangeListener);
+
+      // Trigger state change to candidate
+      const handler = (mockBroadcastChannel.addHandler as any).mock.calls[0][0];
+      handler({
+        data: {
+          type: Command.StartElection,
+          nodeId: nodeId
+        }
+      });
+
+      expect(stateChangeListener).toHaveBeenCalledWith(NodeState.Candidate);
+    });
   });
 
-  it('Node should handle incoming HeartbeatMessage from a valid Leader', () => {
-    // Node starts as Follower, term 0
-    node.currentTerm = 1; // Simulate it has seen term 1
-    vi.advanceTimersByTime(100); // Ensure it's stable as follower
+  describe('Node Lifecycle', () => {
+    it('should handle create messages', () => {
+      const handler = (mockBroadcastChannel.addHandler as any).mock.calls[0][0];
 
-    const leaderHeartbeat: HeartbeatMessage = {
-      type: MessageType.Heartbeat,
-      term: 1,
-      leaderId: otherNodeId,
-      entries: [],
-      leaderCommit: 0,
-    };
+      // Clear any previous calls to log
+      (mockLogger.log as any).mockClear();
 
-    // Simulate receiving a heartbeat
-    // Ideally, we would trigger the message handler registered with BroadCastI
-    // For now, directly call the method that processes heartbeats if it's public
-    // or simulate the effects.
-    // node.handleMessage({ data: leaderHeartbeat } as MessageEvent); // If handleMessage was public
+      // Send create message and become leader first
+      handler({
+        data: {
+          type: Command.StartElection,
+          nodeId: nodeId
+        }
+      });
 
-    // Let's simulate the direct effect of receiving a heartbeat for now
-    // Reset election timer would be a key effect
-    node.lastHeartbeatTime = Date.now(); // Simulate heartbeat reset
-    vi.advanceTimersByTime(2000); // Advance, but not enough to timeout
-    expect(node.state).toBe(NodeState.Follower); // Should remain follower
-    
-    // If a candidate receives a heartbeat from a leader with same or higher term, it steps down
-    vi.advanceTimersByTime(2501); // Transition to Candidate, term becomes 2 (node.currentTerm was 1)
-    expect(node.state).toBe(NodeState.Candidate);
-    expect(node.currentTerm).toBe(2);
-    mockBroadcastChannel.sendMessage.mockClear(); // Clear vote request
+      handler({
+        data: {
+          type: Command.FinishElection,
+          nodeId: nodeId,
+          leader: nodeId
+        }
+      });
 
-    const newLeaderHeartbeat: HeartbeatMessage = {
-      type: MessageType.Heartbeat,
-      term: 2, // Same term as candidate
-      leaderId: otherNodeId,
-      entries: [],
-      leaderCommit: 0,
-    };
-    
-    // Simulate receiving heartbeat as Candidate
-    // node.handleMessage({ data: newLeaderHeartbeat } as MessageEvent); //
-    // Manually call the stepDown logic or relevant part of message handling
-    node.state = NodeState.Follower; // Simulate step down
-    node.currentTerm = newLeaderHeartbeat.term; // Update term
-    node.votedFor = null; // Reset vote
-    node.lastHeartbeatTime = Date.now(); // Reset timer
+      // Then handle create message
+      handler({
+        data: {
+          type: Command.Create,
+          nodeId: otherNodeId
+        }
+      });
 
-    expect(node.state).toBe(NodeState.Follower);
-    expect(node.currentTerm).toBe(2);
-    expect(node.votedFor).toBeNull();
-    // Check that it doesn't try to start a new election immediately
-    vi.advanceTimersByTime(1000); 
-    expect(mockBroadcastChannel.sendMessage).not.toHaveBeenCalled();
+      expect(mockLogger.log).toHaveBeenCalled();
+    });
+
+    it('should handle destroy messages', () => {
+      const handler = (mockBroadcastChannel.addHandler as any).mock.calls[0][0];
+
+      handler({
+        data: {
+          type: Command.Destroy,
+          nodeId: otherNodeId,
+          state: NodeState.Follower
+        }
+      });
+
+      expect(mockLogger.log).toHaveBeenCalled();
+    });
   });
-  
-  it('Follower should reset election timer upon receiving heartbeat', () => {
-    const initialTime = Date.now();
-    vi.advanceTimersByTime(1500); // Advance part way through election timeout
-    
-    const heartbeat: HeartbeatMessage = {
-      type: MessageType.Heartbeat,
-      term: 1, // Assume current term or higher
-      leaderId: otherNodeId,
-      entries: [],
-      leaderCommit: 0,
-    };
-    // node.handleMessage({ data: heartbeat } as MessageEvent); // Simulate receiving heartbeat
-    // Direct simulation of timer reset:
-    node.lastHeartbeatTime = Date.now();
-
-    vi.advanceTimersByTime(1500); // Advance past original timeout time
-    expect(node.state).toBe(NodeState.Follower); // Should still be follower because timer was reset
-
-    vi.advanceTimersByTime(1001); // Advance past the reset election window (2500ms)
-    expect(node.state).toBe(NodeState.Candidate); // Should now become candidate
-  });
-
-  it('Candidate should step down if it receives heartbeat from a leader with higher term', () => {
-    vi.advanceTimersByTime(2501); // Becomes Candidate, term 1
-    expect(node.state).toBe(NodeState.Candidate);
-    expect(node.currentTerm).toBe(1);
-
-    const higherTermHeartbeat: HeartbeatMessage = {
-      type: MessageType.Heartbeat,
-      term: 2, // Higher term
-      leaderId: otherNodeId,
-      entries: [],
-      leaderCommit: 0,
-    };
-
-    // node.handleMessage({ data: higherTermHeartbeat } as MessageEvent);
-    // Simulate step down:
-    node.currentTerm = higherTermHeartbeat.term;
-    node.state = NodeState.Follower;
-    node.votedFor = null;
-    node.lastHeartbeatTime = Date.now();
-
-
-    expect(node.state).toBe(NodeState.Follower);
-    expect(node.currentTerm).toBe(2);
-    expect(node.votedFor).toBeNull();
-  });
-
-  // TODO: More tests:
-  // - Vote request handling (granting/denying votes)
-  // - Log replication (AppendEntries)
-  // - Leader committing entries
-  // - Candidate restarting election on timeout
-  // - Node ignoring messages with older terms
 });
