@@ -1,14 +1,6 @@
-import {Message} from "./types.ts";
+import { BroadCastI, Message, CallBack } from './types.ts';
 
-type CallBack = (event: MessageEvent<Message>) => unknown
-
-
-export interface BroadCastI  {
-    sendMessage(message: any): void
-    addHandler(callBack: CallBack): unknown
-}
-
-export class BroadCast extends BroadcastChannel implements BroadCastI{
+export class BroadCast extends BroadcastChannel implements BroadCastI {
   constructor(channel: string) {
     super(channel);
   }

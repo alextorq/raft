@@ -1,6 +1,6 @@
-import {NodeId} from "./types.ts";
+import { LoggerI, NodeId } from './types.ts';
 
-export class Logger {
+export class Logger implements LoggerI{
     private nodeId: NodeId;
 
     constructor(nodeId: NodeId) {

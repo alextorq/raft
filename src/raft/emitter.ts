@@ -1,6 +1,6 @@
-type EventCallback = (...args: any[]) => void;
+import { EventCallback, EventEmitterI } from './types.ts';
 
-export class EventEmitter {
+export class EventEmitter implements EventEmitterI {
     private events: { [eventName: string]: EventCallback[] } = {};
 
     on(eventName: string, callback: EventCallback) {

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { RaftNode } from './raft';
-import { NodeState, Command, NodeId } from './types';
-import { BroadCastI } from './broad-cast';
-import { Logger } from './logger';
+import { RaftNode } from '../raft/raft.ts';
+import { NodeState, Command, NodeId } from '../raft/types.ts';
+import { BroadCastI } from '../raft/broad-cast.ts';
+import { Logger } from '../raft/logger.ts';
 
 const mockBroadcastChannel: BroadCastI = {
   sendMessage: vi.fn(),

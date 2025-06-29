@@ -1,17 +1,15 @@
 import { EventEmitter } from './emitter.ts';
 import {
+  BroadCastI,
   Command,
-  CreateMessage,
-  DestroyMessage,
-  FinishElectionMessage,
-  HeartbeatMessage,
+  CreateMessage, DestroyMessage,
+  FinishElectionMessage, HeartbeatMessage,
+  LoggerI,
   Message,
   NodeId,
-  NodeState,
-  StartElectionMessage,
+  NodeState, StartElectionMessage
 } from './types.ts';
-import { Logger } from './logger.ts';
-import { BroadCastI } from './broad-cast.ts';
+
 
 export class RaftNode extends EventEmitter {
   public state: NodeState = NodeState.Follower;
@@ -26,12 +24,12 @@ export class RaftNode extends EventEmitter {
 
   private readonly nodeId: NodeId;
   private readonly channel: BroadCastI;
-  private readonly logger: Logger;
+  private readonly logger: LoggerI;
 
   private readonly activeNodes: Set<NodeId>;
   private electionTimer: number;
 
-  constructor(nodeId: NodeId, broadcast: BroadCastI, logger: Logger) {
+  constructor(nodeId: NodeId, broadcast: BroadCastI, logger: LoggerI) {
     super();
     this.nodeId = nodeId;
     this.logger = logger;
