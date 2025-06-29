@@ -2,10 +2,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { RaftNode } from './raft.ts';
 import { BroadCast } from './broad-cast.ts';
 import { Logger } from './logger.ts';
-import { BroadCastI, LoggerI } from './types.ts';
+import { BroadCastI, LoggerI, NodeId } from './types.ts';
 
 export type RafParams = {
-  nodeId: string
+  nodeId: NodeId
   cluster: string
   logger: LoggerI
   broadCast: BroadCastI

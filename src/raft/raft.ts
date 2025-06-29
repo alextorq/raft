@@ -10,7 +10,7 @@ import {
   NodeState, StartElectionMessage
 } from './types.ts';
 
-
+// TODO replace Inheritance to Composition
 export class RaftNode extends EventEmitter {
   public state: NodeState = NodeState.Follower;
 
