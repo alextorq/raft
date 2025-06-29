@@ -1,9 +1,9 @@
-import { NodeState } from './raft/types.ts';
-import { createRaf } from './raft/factory.ts';
+import { createRaf, NodeState} from './raft';
 
 const stateEl = document.querySelector('#state-value');
 
 const node = createRaf({})
+node.init()
 
 const changeDom = (state: NodeState) => {
   if (stateEl) {

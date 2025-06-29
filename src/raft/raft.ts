@@ -39,6 +39,9 @@ export class RaftNode extends EventEmitter {
     this.election = this.election.bind(this);
     this.sendHeartBeat = this.sendHeartBeat.bind(this);
     this.sendDestroyMessage = this.sendDestroyMessage.bind(this);
+  }
+
+  public init() {
     this.startHeartbeat();
     this.startElectionTimer();
     this.setupBroadcastListener();
