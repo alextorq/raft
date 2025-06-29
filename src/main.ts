@@ -4,6 +4,7 @@ import { createRaf } from './raft/factory.ts';
 const stateEl = document.querySelector('#state-value');
 
 const node = createRaf({})
+node.init()
 
 const changeDom = (state: NodeState) => {
   if (stateEl) {
