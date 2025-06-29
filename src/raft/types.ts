@@ -1,3 +1,18 @@
+export type CallBack = (event: MessageEvent<Message>) => unknown
+
+export interface BroadCastI  {
+  sendMessage(message: any): void
+  addHandler(callBack: CallBack): unknown
+}
+
+export type EventCallback = (...args: any[]) => void;
+
+export interface EventEmitterI {
+  on(eventName: string, callback: EventCallback): void
+  off(eventName: string, callback: EventCallback): void
+  emit(eventName: string, ...args: any[]): void
+}
+
 export type NodeId = string;
 
 export enum NodeState {
@@ -40,6 +55,12 @@ export interface CreateMessage extends RaftMessage {
 export interface DestroyMessage extends RaftMessage {
   type: Command.Destroy;
   state: NodeState;
+}
+
+export interface LoggerI {
+  log(message: string, data?: any): void
+  error(message: string, data?: any): void
+  warn(message: string, data?: any): void
 }
 
 export type Message =

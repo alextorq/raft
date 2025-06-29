@@ -1,15 +1,9 @@
-import { Logger, NodeState, RaftNode } from './raft';
-import { BroadCast } from './raft/broad-cast.ts';
-import { v4 as uuidv4 } from 'uuid';
+import { NodeState } from './raft/types.ts';
+import { createRaf } from './raft/factory.ts';
 
 const stateEl = document.querySelector('#state-value');
 
-const nodeId = uuidv4();
-const node = new RaftNode(
-  nodeId,
-  new BroadCast('raft-channel'),
-  new Logger(nodeId),
-);
+const node = createRaf({})
 
 const changeDom = (state: NodeState) => {
   if (stateEl) {
