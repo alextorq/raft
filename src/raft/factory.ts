@@ -11,15 +11,44 @@ export type RafParams = {
   broadCast: BroadCastI
 }
 
-export const createRaf = (params: Partial<RafParams>) => {
-  const cluster = params.cluster || 'raft-channel'
-  const nodeId = params.nodeId || uuidv4();
-  const logger = params.logger || new Logger(nodeId)
-  const broadCast = params.broadCast ||  new BroadCast(cluster)
+export class RafBuilder {
+  private params: Partial<RafParams>
 
-  return new RaftNode(
-    nodeId,
-    broadCast,
-    logger,
-  );
+  public constructor() {
+    this.params = {}
+  }
+
+  public setLogger(logger: LoggerI) {
+    this.params.logger = logger
+    return this
+  }
+
+  public setBroadCast(broadCast: BroadCastI) {
+    this.params.broadCast = broadCast
+    return this
+  }
+
+  public setNodeId(nodeId: NodeId) {
+    this.params.nodeId = nodeId
+    return this
+  }
+
+  public setCluster(cluster: string) {
+    this.params.cluster = cluster
+    return this
+  }
+
+
+  public build() {
+    const cluster = this.params.cluster || 'raft-channel'
+    const nodeId = this.params.nodeId || uuidv4();
+    const logger = this.params.logger || new Logger(nodeId)
+    const broadCast = this.params.broadCast ||  new BroadCast(cluster)
+
+    return new RaftNode(
+      nodeId,
+      broadCast,
+      logger,
+    );
+  }
 }

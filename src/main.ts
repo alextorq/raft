@@ -1,8 +1,8 @@
-import { createRaf, NodeState} from './raft';
+import { RafBuilder, NodeState} from './raft';
 
 const stateEl = document.querySelector('#state-value');
 
-const node = createRaf({})
+const node = new RafBuilder().build()
 node.init()
 
 const changeDom = (state: NodeState) => {
