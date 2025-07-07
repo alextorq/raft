@@ -1,19 +1,20 @@
-import { EventEmitter } from './emitter.ts';
 import {
   BroadCastI,
   Command,
-  CreateMessage, DestroyMessage,
-  FinishElectionMessage, HeartbeatMessage,
+  CreateMessage,
+  DestroyMessage, EventCallback, EventEmitterI,
+  FinishElectionMessage,
+  HeartbeatMessage,
   LoggerI,
   Message,
   NodeId,
-  NodeState, StartElectionMessage
+  NodeState,
+  StartElectionMessage
 } from './types.ts';
 
-// TODO replace Inheritance to Composition
-export class RaftNode extends EventEmitter {
+export class RaftNode implements EventEmitterI {
   public state: NodeState = NodeState.Follower;
-
+  private readonly emitter: EventEmitterI;
   private leaderId: NodeId | null = null;
 
   private lastHeartbeatLeader = Date.now();
@@ -29,8 +30,25 @@ export class RaftNode extends EventEmitter {
   private readonly activeNodes: Set<NodeId>;
   private electionTimer: number;
 
-  constructor(nodeId: NodeId, broadcast: BroadCastI, logger: LoggerI) {
-    super();
+  emit(eventName: string, ...args: unknown[]) {
+    this.emitter.emit(eventName, ...args);
+  }
+
+  on(eventName: string, callback: EventCallback) {
+    this.emitter.on(eventName, callback);
+  }
+
+  off(eventName: string, callback: EventCallback) {
+    this.emitter.off(eventName, callback);
+  }
+
+  constructor(
+    nodeId: NodeId,
+    broadcast: BroadCastI,
+    logger: LoggerI,
+    emit: EventEmitterI,
+  ) {
+    this.emitter = emit;
     this.nodeId = nodeId;
     this.logger = logger;
     this.electionTimer = 0;
@@ -236,12 +254,17 @@ export class RaftNode extends EventEmitter {
   }
 
   private sendHeartBeat() {
-    const message: HeartbeatMessage = {
-      type: Command.HeardBeat,
-      nodeId: this.nodeId,
-      state: this.state,
-    };
-    this.channel.sendMessage(message);
+    const allowState = [NodeState.Leader, NodeState.Candidate];
+
+    if (allowState.includes(this.state)) {
+      const message: HeartbeatMessage = {
+        type: Command.HeardBeat,
+        nodeId: this.nodeId,
+        state: this.state,
+      };
+
+      this.channel.sendMessage(message);
+    }
   }
 
   /**
