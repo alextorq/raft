@@ -18,10 +18,11 @@ export class RaftNode implements EventEmitterI {
   private leaderId: NodeId | null = null;
 
   private lastHeartbeatLeader = Date.now();
-  private readonly heartbeatInterval = 1000;
+  private readonly heartbeatInterval = 500;
   private readonly startElectionTimeout = 10000;
   private readonly electionTimeoutRange = { min: 2000, max: 3000 };
-  private readonly multiply = 5;
+  private readonly multiply = 3;
+  private heartbeatIntervalTimeId: ReturnType<typeof setInterval> | null = null;
 
   private readonly nodeId: NodeId;
   private readonly channel: BroadCastI;
@@ -57,6 +58,7 @@ export class RaftNode implements EventEmitterI {
     this.election = this.election.bind(this);
     this.sendHeartBeat = this.sendHeartBeat.bind(this);
     this.sendDestroyMessage = this.sendDestroyMessage.bind(this);
+    this.handleMessage = this.handleMessage.bind(this);
   }
 
   public init() {
@@ -75,27 +77,26 @@ export class RaftNode implements EventEmitterI {
   }
 
   private setupBroadcastListener() {
-    this.channel.addHandler((event: MessageEvent<Message>) => {
-      this.handleMessage(event.data);
-    });
+    this.channel.addHandler(this.handleMessage);
   }
 
-  private handleMessage(message: Message) {
-    switch (message.type) {
+  private handleMessage(message: MessageEvent<Message>) {
+    const data = message.data
+    switch (data.type) {
       case Command.HeardBeat:
-        this.heartBeatHandler(message);
+        this.heartBeatHandler(data);
         break;
       case Command.Destroy:
-        this.destroyMessageHandler(message);
+        this.destroyMessageHandler(data);
         break;
       case Command.StartElection:
         this.becomeCandidate();
         break;
       case Command.Create:
-        this.createMessageHandler(message);
+        this.createMessageHandler(data);
         break;
       case Command.FinishElection:
-        this.finishMessageHandler(message);
+        this.finishMessageHandler(data);
         break;
     }
   }
@@ -129,6 +130,16 @@ export class RaftNode implements EventEmitterI {
     this.channel.sendMessage(message);
   }
 
+
+  public destroy() {
+    this.logger.log(`Node ${this.nodeId} is being destroyed`);
+    this.sendDestroyMessage();
+    clearInterval(this.heartbeatIntervalTimeId!);
+    this.stopElectionTimer();
+    this.channel.removeHandler(this.handleMessage);
+    this.emit('destroy');
+  }
+  
   public resume() {
     this.sendHeartBeat();
   }
@@ -294,6 +305,6 @@ export class RaftNode implements EventEmitterI {
    */
   private startHeartbeat() {
     this.sendCreateMessage();
-    setInterval(this.sendHeartBeat, this.heartbeatInterval);
+    this.heartbeatIntervalTimeId = setInterval(this.sendHeartBeat, this.heartbeatInterval);
   }
 }

@@ -15,6 +15,6 @@ const changeDom = (state: NodeState) => {
 changeDom(node.state)
 node.on('stateChange', changeDom);
 
-window.addEventListener('beforeunload', node.sendDestroyMessage);
+window.addEventListener('beforeunload', node.destroy);
 window.addEventListener('freeze', node.sendDestroyMessage);
 window.addEventListener('resume', node.resume);

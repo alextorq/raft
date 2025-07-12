@@ -3,6 +3,7 @@ export type CallBack = (event: MessageEvent<Message>) => unknown
 export interface BroadCastI  {
   sendMessage(message: any): void
   addHandler(callBack: CallBack): unknown
+  removeHandler(callBack: CallBack): unknown
 }
 
 export type EventCallback = (...args: any[]) => void;
